@@ -1,7 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,17 +9,13 @@ using System.Threading.Tasks.Dataflow;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Counter = System.Collections.Generic.Dictionary<string, int>;
-public class Tests
+public class TripletsCounter
 {
-   
-
-    
-   
-     [Arguments("lor.txt")]
+   [Arguments("lor.txt")]
      [Benchmark]
-      public async Task tplt(string path)
+      public async Task CountWithTPL(string path)
       {
-         Counter result=new Counter();
+         Counter resultingDictionary=new Counter();
          int chunkSize=128000; 
          BufferBlock<char[]> queue;
          
@@ -30,7 +23,8 @@ public class Tests
          {
             BoundedCapacity = 32
          });
-         async Task read(string path)
+         
+         async Task readTxtFile(string path)
          {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None, bufferSize: chunkSize);
             using var sr = new StreamReader(fs);
@@ -45,6 +39,7 @@ public class Tests
             queue.Complete();
       
          }
+         
          DataflowLinkOptions DataflowLinkOptions = new() { PropagateCompletion = true };
          static bool IsSkip(char ch)
          {
@@ -58,7 +53,7 @@ public class Tests
                if (IsSkip(buffer[i]) || IsSkip(buffer[i + 1]) || IsSkip(buffer[i + 2]))
                   continue;
                var key = new string(buffer, i, 3);
-               result[key] = result.GetValueOrDefault(key, 0) + 1;
+               resultingDictionary[key] = resultingDictionary.GetValueOrDefault(key, 0) + 1;
             }
             new ExecutionDataflowBlockOptions()
             {
@@ -66,30 +61,37 @@ public class Tests
                BoundedCapacity = 32
             };
          });
-         queue.LinkTo(count, DataflowLinkOptions);
-         await read(path);
-         await count.Completion;
          
-         var list = result.ToList();
-         list.Sort((x, y) => x.Value.CompareTo(y.Value));
-         var l= list.TakeLast(10).Reverse().ToArray();
-            Console.WriteLine("Top {0}",10);
+         void printTopN(int n)
+         {
+            var list = resultingDictionary.ToList();
+            list.Sort((x, y) => x.Value.CompareTo(y.Value));
+            var l= list.TakeLast(n).Reverse().ToArray();
+            Console.WriteLine("Top {0}",n);
             foreach (var l1 in l)
             {
                Console.WriteLine(l1);
             }
+         }
+         
+         queue.LinkTo(count, DataflowLinkOptions);
+         await readTxtFile(path);
+         await count.Completion;
+         printTopN(10);
       }
+      
+      
       static async Task Main()
       {
          var timer = new Stopwatch();
          timer.Start();
-         var a= new Tests();
-         await a.tplt("lor.txt");
+         var Counter= new TripletsCounter();
+         await Counter.CountWithTPL("lor.txt");
          timer.Stop();
          TimeSpan timeTaken = timer.Elapsed;
          Console.WriteLine("It took {0} ms to count",timeTaken.Milliseconds);
          
-         var summary = BenchmarkRunner.Run<Tests>();
+         //var summary = BenchmarkRunner.Run<TripletsCounter>();
       }
     
 }
